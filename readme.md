@@ -191,3 +191,80 @@ func (h helloService) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.He
         |—— hello.pb.go   // proto编译后文件
 ```
 
+
+# 拦截器校验
+grpc服务端和客户端都提供了interceptor功能，功能类似middleware，很适合在这里处理验证、日志等流程。
+
+在自定义Token认证的示例中，认证信息是由每个服务中的方法处理并认证的，如果有大量的接口方法，这种姿势就太不优雅了，
+每个接口实现都要先处理认证信息。这个时候interceptor就可以用来解决了这个问题，在请求被转到具体接口之前处理认证
+信息，一处认证，到处无忧。 在客户端，我们增加一个请求日志，记录请求相关的参数和耗时等等。
+
+目录结构
+```shell script
+|—— interceptor/
+    |—— client/
+        |—— main.go   // 客户端
+    |—— server/
+        |—— main.go   // 服务端
+|—— keys/             // 证书目录
+    |—— server.key
+    |—— server.pem
+|—— proto/
+    |—— hello/
+        |—— hello.proto   // proto描述文件
+        |—— hello.pb.go   // proto编译后文件
+```
+
+
+服务端代码：
+```go
+var opts []grpc.ServerOption
+// TLS认证
+creds, err := credentials.NewServerTLSFromFile("../../keys/server.pem", "../../keys/server.key")
+if err != nil {
+    grpclog.Fatalf("Failed to generate credentials %v", err)
+}
+opts = append(opts, grpc.Creds(creds))
+// 注册interceptor
+opts = append(opts, grpc.UnaryInterceptor(interceptor))
+// 实例化grpc Server
+s := grpc.NewServer(opts...)
+
+...
+
+
+// interceptor 拦截器
+func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+    err := auth(ctx)
+    if err != nil {
+        return nil, err
+    }
+    // 继续处理请求
+    return handler(ctx, req)
+}
+
+```
+
+
+客户端代码
+```go
+var opts []grpc.DialOption
+if OpenTLS {
+    // TLS连接
+    creds, err := credentials.NewClientTLSFromFile("./keys/server.pem", "xx")
+    if err != nil {
+        grpclog.Fatalf("Failed to create TLS credentials %v", err)
+    }
+    opts = append(opts, grpc.WithTransportCredentials(creds))
+} else {
+    opts = append(opts, grpc.WithInsecure())
+}
+// 指定自定义认证
+opts = append(opts, grpc.WithPerRPCCredentials(new(customCredential)))
+// 指定客户端interceptor
+opts = append(opts, grpc.WithUnaryInterceptor(interceptor))
+
+conn, err := grpc.Dial(Address, opts...)
+```
+
+
