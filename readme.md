@@ -21,8 +21,6 @@ gRPC基于HTTP2标准设计，所以相对于其他RPC框架，gRPC带来了更�
 这些功能给移动设备带来重大益处，如节省带宽、降低TCP链接次数、节省CPU使用和延长电池寿命等。同时，gRPC还能够提高了云端服务和Web应用的性能。
 gRPC既能够在客户端应用，也能够在服务器端应用，从而以透明的方式实现客户端和服务器端的通信和简化通信系统的构建。
 
-
-
 # 安装
 安装protoc工具，从https://github.com/protocolbuffers/protobuf/releases/tag/v3.9.0页面上选择
 直接下载软件包，将protoc解压到$GOPATH/bin路径下
@@ -33,6 +31,11 @@ go get github.com/golang/protobuf/protoc-gen-go
 ```
 上面安装好后，会在GOPATH/bin下生成protoc-gen-go
 
+生成go文件，运行gen.sh文件，生成的文件会放./proto/hello文件下
+```go
+cd proto/hello
+protoc --go_out=plugins=grpc:. *.proto
+```
 
 演示代码目录结构
 ```
@@ -49,8 +52,6 @@ go get github.com/golang/protobuf/protoc-gen-go
         |—— hello.proto   // proto描述文件
         |—— hello.pb.go   // proto编译后文件
 ```
-
-
 
 # GRPC认证方式
 
