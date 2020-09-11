@@ -33,6 +33,25 @@ go get github.com/golang/protobuf/protoc-gen-go
 ```
 上面安装好后，会在GOPATH/bin下生成protoc-gen-go
 
+
+演示代码目录结构
+```
+|—— normal/
+    |—— client/
+        |—— client.go   // 客户端
+    |—— server/
+        |—— server.go   // 服务端
+|—— keys/                 // 证书目录
+    |—— server.key
+    |—— server.pem
+|—— proto/
+    |—— hello/
+        |—— hello.proto   // proto描述文件
+        |—— hello.pb.go   // proto编译后文件
+```
+
+
+
 # GRPC认证方式
 
 ## TLS认证示例
@@ -63,13 +82,13 @@ Common Name (e.g. server FQDN or YOUR name) []:server name   //服务名称 例�
 Email Address []:xxx@xxx.com  //邮箱地址
 ```
 
-目录结构
+演示代码目录结构
 ```
-|—— hello-tls/
+|—— tls/
     |—— client/
-        |—— main.go   // 客户端
+        |—— client.go   // 客户端
     |—— server/
-        |—— main.go   // 服务端
+        |—— server.go   // 服务端
 |—— keys/                 // 证书目录
     |—— server.key
     |—— server.pem
@@ -79,8 +98,26 @@ Email Address []:xxx@xxx.com  //邮箱地址
         |—— hello.pb.go   // proto编译后文件
 ```
 
+服务端代码
+```go
+// TLS认证
+creds, err := credentials.NewServerTLSFromFile("./keys/server.pem", "./keys/server.key")
+if err != nil {
+    grpclog.Fatalf("Failed to generate credentials %v", err)
+}
+// 实例化grpc Server, 并开启TLS认证
+s = grpc.NewServer(grpc.Creds(creds))
+```
+客户端代码
+```go
+creds, err := credentials.NewClientTLSFromFile("./keys/server.pem", "xx")
+if err != nil {
+    grpclog.Fatalf("Failed to create TLS credentials, %v", err)
+}
+conn, err = grpc.Dial(Address, grpc.WithTransportCredentials(creds))
+```
 
-# 问题记录
+### 问题记录
 
 客户端连接时报错
 ```shell script
@@ -95,4 +132,61 @@ x509: cannot validate certificate for 10.30.0.163 because it doesn't contain any
 10.30.0.163 caron
 ```
 
+
+## TLS+TOKEN认证
+
+这里我们定义了一个customCredential结构，并实现了两个方法GetRequestMetadata和RequireTransportSecurity。
+这是gRPC提供的自定义认证方式，每次RPC调用都会传输认证信息。customCredential其实是实现了grpc/credential
+包内的PerRPCCredentials接口。每次调用，token信息会通过请求的metadata传输到服务端。下面具体看一下服务端如
+何获取metadata中的信息。
+```go
+
+// SayHello 实现Hello服务接口
+func (h helloService) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloResponse, error) {
+    // 解析metada中的信息并验证
+    md, ok := metadata.FromIncomingContext(ctx)
+    if !ok {
+        return nil, grpc.Errorf(codes.Unauthenticated, "无Token认证信息")
+    }
+
+    var (
+        appid  string
+        appkey string
+    )
+
+    if val, ok := md["appid"]; ok {
+        appid = val[0]
+    }
+
+    if val, ok := md["appkey"]; ok {
+        appkey = val[0]
+    }
+
+    if appid != "101010" || appkey != "i am key" {
+        return nil, grpc.Errorf(codes.Unauthenticated, "Token认证信息无效: appid=%s, appkey=%s", appid, appkey)
+    }
+
+    resp := new(pb.HelloResponse)
+    resp.Message = fmt.Sprintf("Hello %s.\nToken info: appid=%s,appkey=%s", in.Name, appid, appkey)
+
+    return resp, nil
+}
+```
+
+
+演示代码目录结构
+```
+|—— token/
+    |—— client/
+        |—— client.go   // 客户端
+    |—— server/
+        |—— server.go   // 服务端
+|—— keys/                 // 证书目录
+    |—— server.key
+    |—— server.pem
+|—— proto/
+    |—— hello/
+        |—— hello.proto   // proto描述文件
+        |—— hello.pb.go   // proto编译后文件
+```
 
