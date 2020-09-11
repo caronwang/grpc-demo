@@ -33,3 +33,66 @@ go get github.com/golang/protobuf/protoc-gen-go
 ```
 上面安装好后，会在GOPATH/bin下生成protoc-gen-go
 
+# GRPC认证方式
+
+## TLS认证示例
+### 证书制作
+制作私钥 (.key)
+```shell script
+# Key considerations for algorithm "RSA" ≥ 2048-bit
+$ openssl genrsa -out server.key 2048
+
+# Key considerations for algorithm "ECDSA" ≥ secp384r1
+# List ECDSA the supported curves (openssl ecparam -list_curves)
+$ openssl ecparam -genkey -name secp384r1 -out server.key
+```
+
+自签名公钥(x509) (PEM-encodings .pem|.crt)
+```shell script
+$ openssl req -new -x509 -sha256 -key server.key -out server.pem -days 3650
+```
+自定义信息
+```shell script
+-----
+Country Name (2 letter code) [AU]:CN  //这个是中国的缩写
+State or Province Name (full name) [Some-State]:XxXx  //省份
+Locality Name (eg, city) []:XxXx  //城市
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:XX Co. Ltd  //公司名称
+Organizational Unit Name (eg, section) []:Dev   //部门名称
+Common Name (e.g. server FQDN or YOUR name) []:server name   //服务名称 例如www.topgoer.com
+Email Address []:xxx@xxx.com  //邮箱地址
+```
+
+目录结构
+```
+|—— hello-tls/
+    |—— client/
+        |—— main.go   // 客户端
+    |—— server/
+        |—— main.go   // 服务端
+|—— keys/                 // 证书目录
+    |—— server.key
+    |—— server.pem
+|—— proto/
+    |—— hello/
+        |—— hello.proto   // proto描述文件
+        |—— hello.pb.go   // proto编译后文件
+```
+
+
+# 问题记录
+
+客户端连接时报错
+```shell script
+x509: cannot validate certificate for 10.30.0.163 because it doesn't contain any IP SANs
+```
+解决方法：  
+创建证书时使用IP别名
+服务端创建证书时，使用IP别名（根据实际情况随便起一个，例如:caron）
+修改host文件/etc/hosts
+在文件中添加行：
+```
+10.30.0.163 caron
+```
+
+

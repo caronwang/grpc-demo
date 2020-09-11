@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"google.golang.org/grpc/credentials"
 	"net"
 
 	"golang.org/x/net/context"
@@ -12,7 +13,7 @@ import (
 
 const (
 	// Address gRPC服务地址
-	Address = "127.0.0.1:50052"
+	Address = "caron:50052"
 )
 
 // 定义helloService并实现约定的接口
@@ -35,8 +36,22 @@ func main() {
 		grpclog.Fatalf("Failed to listen: %v", err)
 	}
 
-	// 实例化grpc Server
-	s := grpc.NewServer()
+	tls := true
+	var s *grpc.Server
+
+	if tls {
+		// TLS认证
+		creds, err := credentials.NewServerTLSFromFile("./keys/server.pem", "./keys/server.key")
+		if err != nil {
+			grpclog.Fatalf("Failed to generate credentials %v", err)
+		}
+
+		// 实例化grpc Server, 并开启TLS认证
+		s = grpc.NewServer(grpc.Creds(creds))
+	} else {
+		//无认证
+		s = grpc.NewServer()
+	}
 
 	// 注册HelloService
 	pb.RegisterHelloServer(s, HelloService)
